@@ -335,7 +335,7 @@ def get_tree_dicts(directory: str, classes: List[str] = None, classes_at: str = 
         record["file_name"] = filename
         record["height"] = height
         record["width"] = width
-        record["image_id"] = filename[0:400]
+        record["image_id"] = filename[0:400] # TODO: check 400 hardcoded value!
         record["annotations"] = {}
         # print(filename[0:400])
 
@@ -396,7 +396,9 @@ def combine_dicts(root_dir: str,
         for d in train_dirs:
             tree_dicts += get_tree_dicts(d, classes=classes, classes_at=classes_at)
     elif mode == "val":
+        print('mode val activated')
         tree_dicts = get_tree_dicts(train_dirs[(val_dir - 1)], classes=classes, classes_at=classes_at)
+        print("tree dicts")
     elif mode == "full":
         tree_dicts = []
         for d in train_dirs:
@@ -436,16 +438,19 @@ def register_train_data(train_location,
         val_fold: fold assigned for validation and tuning. If not given,
         will take place on all folds.
     """
+    test_counter = 0
     if val_fold is not None:
-        for d in ["train", "val"]:
+        for d in ["train", "val"]: # registers two sets
+            test_counter = test_counter +1
             DatasetCatalog.register(name + "_" + d, lambda d=d: combine_dicts(train_location,
                                                                               val_fold, d,
                                                                               classes=classes, classes_at=classes_at))
-            if classes is None:
+            if classes is None: # default case
                 MetadataCatalog.get(name + "_" + d).set(thing_classes=["tree"])
             else:
                 MetadataCatalog.get(name + "_" + d).set(thing_classes=classes)
     else:
+        # TODO: insert for loop like above
         DatasetCatalog.register(name + "_" + "full", lambda d=d: combine_dicts(train_location,
                                                                                0, "full",
                                                                                classes=classes, classes_at=classes_at))
@@ -538,10 +543,11 @@ def setup_cfg(
     cfg.DATALOADER.NUM_WORKERS = workers
     cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
     cfg.SOLVER.GAMMA = gamma
-    cfg.MODEL.BACKBONE.FREEZE_AT = backbone_freeze
     cfg.SOLVER.WARMUP_ITERS = warm_iter
     cfg.SOLVER.MOMENTUM = momentum
+    cfg.MODEL.BACKBONE.FREEZE_AT = backbone_freeze
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = batch_size_per_im
+    cfg.MODEL.DEVICE = "cpu"
     cfg.SOLVER.WEIGHT_DECAY = weight_decay
     cfg.SOLVER.BASE_LR = base_lr
     cfg.OUTPUT_DIR = out_dir
