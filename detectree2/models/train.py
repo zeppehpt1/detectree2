@@ -396,9 +396,7 @@ def combine_dicts(root_dir: str,
         for d in train_dirs:
             tree_dicts += get_tree_dicts(d, classes=classes, classes_at=classes_at)
     elif mode == "val":
-        print('mode val activated')
         tree_dicts = get_tree_dicts(train_dirs[(val_dir - 1)], classes=classes, classes_at=classes_at)
-        print("tree dicts")
     elif mode == "full":
         tree_dicts = []
         for d in train_dirs:
@@ -547,7 +545,9 @@ def setup_cfg(
     cfg.SOLVER.MOMENTUM = momentum
     cfg.MODEL.BACKBONE.FREEZE_AT = backbone_freeze
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = batch_size_per_im
-    cfg.MODEL.DEVICE = "cpu"
+    if not torch.cuda.is_available():
+        cfg.MODEL.DEVICE = "cpu"
+    print("GPU used!")
     cfg.SOLVER.WEIGHT_DECAY = weight_decay
     cfg.SOLVER.BASE_LR = base_lr
     cfg.OUTPUT_DIR = out_dir
@@ -560,7 +560,7 @@ def setup_cfg(
     cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
     cfg.SOLVER.BASE_LR = base_lr
     cfg.SOLVER.MAX_ITER = max_iter
-    cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1 # only 1 class
     cfg.TEST.EVAL_PERIOD = eval_period
     cfg.RESIZE = resize
     cfg.INPUT.MIN_SIZE_TRAIN = 1000

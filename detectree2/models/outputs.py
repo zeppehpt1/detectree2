@@ -7,6 +7,7 @@ import json
 import os
 from http.client import REQUEST_URI_TOO_LONG  # noqa: F401
 from pathlib import Path
+import glob
 
 import cv2
 import geopandas as gpd
@@ -281,10 +282,10 @@ def box_make(minx: int, miny: int, width: int, buffer: int, crs, shift: int = 0)
 
 def stitch_crowns(folder: str, shift: int = 1):
     """Stitch together predicted crowns."""
-    crowns_path = Path(folder)
-    files = crowns_path.glob("*geojson")
-    _, _, _, _, crs = filename_geoinfo(list(files)[0])
-    files = crowns_path.glob("*geojson")
+    files = glob.glob(folder +"*geojson")
+    #crs = Path(list(files)[0]).stem.split("_")[8]
+    _, _, _, _, crs = filename_geoinfo(list(files)[0]) # requires strict filename pattern
+    files = glob.glob(folder +"*geojson")
     crowns = gpd.GeoDataFrame(
         columns=["Confidence_score", "geometry"],
         geometry="geometry",
