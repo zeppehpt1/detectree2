@@ -225,6 +225,18 @@ class MyTrainer(DefaultTrainer):
             return self._last_eval_results
 
     @classmethod
+    # def build_train_loader(cls, cfg): # TODO: test this
+    #     custom_mapper = DatasetMapper(cfg, is_train=True, augmentations=[
+    #         T.RandomBrightness(0.8, 1.8),
+    #         T.RandomContrast(0.6, 1.3),
+    #         T.RandomSaturation(0.8, 1.4),
+    #         T.RandomRotation(angle=[90, 90], expand=False),
+    #         T.RandomLighting(0.7),
+    #         T.RandomFlip(prob=0.4, horizontal=True, vertical=False),
+    #         T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
+    #     ])
+    #     return build_detection_train_loader(cfg, mapper=custom_mapper)
+    
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         if output_folder is None:
             os.makedirs("eval", exist_ok=True)
@@ -404,7 +416,7 @@ def combine_dicts(root_dir: str,
     return tree_dicts
 
 
-def get_filenames(directory: str):
+def get_filenames(directory: str): # TODO: document change in getting consistent filenames
     """Get the file names if no geojson is present.
 
     Allows for predictions where no delinations have been manually produced.
@@ -416,7 +428,7 @@ def get_filenames(directory: str):
     files = glob.glob(directory + "*.png")
     for filename in [file for file in files]:
         file = {}
-        filename = os.path.join(directory, filename)
+        filename = os.path.join(directory, str(Path(filename).name)) # here change made
         file["file_name"] = filename
 
         dataset_dicts.append(file)
@@ -499,7 +511,7 @@ def setup_cfg(
     tests=("trees_val", ),
     update_model=None,
     workers=2,
-    ims_per_batch=2,
+    ims_per_batch=2, # default was 2
     gamma=0.1,
     backbone_freeze=3,
     warm_iter=120,
@@ -507,7 +519,7 @@ def setup_cfg(
     batch_size_per_im=1024,
     base_lr=0.0003389,
     weight_decay=0.001,
-    max_iter=1000,
+    max_iter=1000, # maximum 1000 epochs, end after reaching AP condition
     num_classes=1,
     eval_period=100,
     out_dir="/content/drive/Shareddrives/detectree2/train_outputs",
@@ -560,7 +572,7 @@ def setup_cfg(
     cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
     cfg.SOLVER.BASE_LR = base_lr
     cfg.SOLVER.MAX_ITER = max_iter
-    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1 # only 1 class
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes # only 1 class
     cfg.TEST.EVAL_PERIOD = eval_period
     cfg.RESIZE = resize
     cfg.INPUT.MIN_SIZE_TRAIN = 1000

@@ -27,6 +27,7 @@ def predict_on_data(
     Predicts crowns for all png images present in a directory and outputs masks as jsons.
     """
 
+    print("directorypaht",directory)
     pred_dir = os.path.join(directory, "predictions")
 
     Path(pred_dir).mkdir(parents=True, exist_ok=True)

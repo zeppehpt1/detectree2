@@ -3,6 +3,9 @@ from pathlib import Path
 from detectree2.preprocessing import tiling
 from detectree2.models import train
 
+import PIL
+PIL.Image.MAX_IMAGE_PIXELS = 206049024
+
 import torch
 import importlib
 import os
@@ -16,16 +19,19 @@ from detectron2.data import (
 )
 
 # check if gpu is used
-if torch.cuda.current_device() == 1 or 2:
+if torch.cuda.current_device() == 0 or 1:
     print("all used, exit training now")
     exit
 print("gpu free to use")
 
+# input paths
+site_folder = '../data/Bamberg_Hain/'
+
 # folder setup
 # site_folder = PROJECT_ROOT / 'data' / 'Bamberg_Hain' laptop
-site_folder = '/home/nieding/data/Bamberg_Hain/'
-site_name = 'Schiefer'
-out_dir = site_folder + 'outputs'
+site_folder = '../data/Bamberg_Hain/'
+site_name = 'Schiefer_10'
+out_dir = site_folder + 'outputs/'
 Path(out_dir).mkdir(parents=True, exist_ok=True)
 
 # # remove dataset before creation --> debugging purposes
@@ -48,10 +54,16 @@ base_model = "COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml" #with api
 pre_trained_model = site_folder + 'models/220723_withParacouUAV.pth'
 
 # train model
-trains = ("Schiefer_train",)
-tests = ("Schiefer_val",)
+trains = ("Schiefer_10_train",)
+tests = ("Schiefer_10_val",)
 
-cfg = setup_cfg(base_model,trains, tests, workers=4, eval_period=100, update_model=str(pre_trained_model), max_iter=3000, out_dir=str(out_dir)) # update_model arg can be used to load in trained  model
+cfg = setup_cfg(base_model,
+                trains,
+                tests, workers=4,
+                eval_period=100,
+                update_model=str(pre_trained_model),
+                max_iter=3000,
+                out_dir=str(out_dir)) # update_model arg can be used to load in trained  model
 trainer = MyTrainer(cfg, patience=4)
 trainer.resume_or_load(resume=False)
 trainer.train()
