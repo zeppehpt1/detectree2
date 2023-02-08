@@ -166,7 +166,7 @@ class LossEvalHook(HookBase):
 
 
 # See https://jss367.github.io/data-augmentation-in-detectron2.html for data augmentation advice
-class MyTrainer(DefaultTrainer):
+class MyTrainer(DefaultTrainer): # using custom trainer
     """Summary.
 
     Args:
@@ -194,6 +194,7 @@ class MyTrainer(DefaultTrainer):
         start_iter = self.start_iter
         max_iter = self.max_iter
         logger = logging.getLogger(__name__)
+        logger.info("training has started!")
         logger.info("Starting training from iteration {}".format(start_iter))
 
         self.iter = self.start_iter = start_iter
@@ -224,25 +225,52 @@ class MyTrainer(DefaultTrainer):
             verify_results(self.cfg, self._last_eval_results)
             return self._last_eval_results
 
-    @classmethod
-    # def build_train_loader(cls, cfg): # TODO: test this
-    #     custom_mapper = DatasetMapper(cfg, is_train=True, augmentations=[
-    #         T.RandomBrightness(0.8, 1.8),
-    #         T.RandomContrast(0.6, 1.3),
-    #         T.RandomSaturation(0.8, 1.4),
-    #         T.RandomRotation(angle=[90, 90], expand=False),
-    #         T.RandomLighting(0.7),
-    #         T.RandomFlip(prob=0.4, horizontal=True, vertical=False),
-    #         T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
-    #     ])
-    #     return build_detection_train_loader(cfg, mapper=custom_mapper)
+    @classmethod # overrite default methods
+    def build_train_loader(cls, cfg):
+        """Summary.
+
+        Args:
+            cfg (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        augmentations = [
+            T.RandomBrightness(0.8, 1.8),
+            T.RandomContrast(0.6, 1.3),
+            T.RandomSaturation(0.8, 1.4),
+            T.RandomRotation(angle=[90, 90], expand=False),
+            T.RandomLighting(0.7),
+            T.RandomFlip(prob=0.4, horizontal=True, vertical=False),
+            T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
+        ]
+
+        if cfg.RESIZE:
+            augmentations.append(T.ResizeShortestEdge((1000, 1000),max_size=1333,sample_style="choice"))
+        elif cfg.RESIZE == "random":
+            for i, datas in enumerate(DatasetCatalog.get(cfg.DATASETS.TRAIN[0])):
+                location = datas['file_name']
+                size = cv2.imread(location).shape[0]
+                break
+            print("ADD RANDOM RESIZE WITH SIZE = ", size)
+            augmentations.append(T.ResizeScale(0.6, 1.4, size, size))
+        return build_detection_train_loader(
+            cfg,
+            mapper=DatasetMapper(
+                cfg,
+                is_train=True,
+                augmentations=augmentations,
+            ),
+        )
     
+    @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         if output_folder is None:
             os.makedirs("eval", exist_ok=True)
             output_folder = "eval"
         return COCOEvaluator(dataset_name, cfg, True, output_folder)
 
+    @classmethod
     def build_hooks(self):
         hooks = super().build_hooks()
         # augmentations = [T.ResizeShortestEdge(short_edge_length=(1000, 1000),
@@ -262,45 +290,6 @@ class MyTrainer(DefaultTrainer):
             ),
         )
         return hooks
-
-
-def build_train_loader(cls, cfg):
-    """Summary.
-
-    Args:
-        cfg (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    augmentations = [
-        T.RandomBrightness(0.8, 1.8),
-        T.RandomContrast(0.6, 1.3),
-        T.RandomSaturation(0.8, 1.4),
-        T.RandomRotation(angle=[90, 90], expand=False),
-        T.RandomLighting(0.7),
-        T.RandomFlip(prob=0.4, horizontal=True, vertical=False),
-        T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
-    ]
-
-    if cfg.RESIZE:
-        augmentations.append(T.Resize((1000, 1000)))
-    elif cfg.RESIZE == "random":
-        for i, datas in enumerate(DatasetCatalog.get(cfg.DATASETS.TRAIN[0])):
-            location = datas['file_name']
-            size = cv2.imread(location).shape[0]
-            break
-        print("ADD RANDOM RESIZE WITH SIZE = ", size)
-        augmentations.append(T.ResizeScale(0.6, 1.4, size, size))
-    return build_detection_train_loader(
-        cfg,
-        mapper=DatasetMapper(
-            cfg,
-            is_train=True,
-            augmentations=augmentations,
-        ),
-    )
-
 
 def get_tree_dicts(directory: str, classes: List[str] = None, classes_at: str = None) -> List[Dict]:
     """Get the tree dictionaries.
@@ -513,13 +502,13 @@ def setup_cfg(
     workers=2,
     ims_per_batch=2, # default was 2
     gamma=0.1,
-    backbone_freeze=3,
+    backbone_freeze=3, # freeze at residual block
     warm_iter=120,
     momentum=0.9,
     batch_size_per_im=1024,
     base_lr=0.0003389,
     weight_decay=0.001,
-    max_iter=1000, # maximum 1000 epochs, end after reaching AP condition
+    max_iter=800, # maximum 1000 epochs, end after reaching AP condition
     num_classes=1,
     eval_period=100,
     out_dir="/content/drive/Shareddrives/detectree2/train_outputs",
@@ -551,31 +540,32 @@ def setup_cfg(
     cfg.DATASETS.TRAIN = trains
     cfg.DATASETS.TEST = tests
     cfg.DATALOADER.NUM_WORKERS = workers
+    cfg.INPUT.MIN_SIZE_TRAIN = 1000
     cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
     cfg.SOLVER.GAMMA = gamma
     cfg.SOLVER.WARMUP_ITERS = warm_iter
     cfg.SOLVER.MOMENTUM = momentum
+    cfg.SOLVER.WEIGHT_DECAY = weight_decay
+    cfg.SOLVER.BASE_LR = base_lr
+    cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
+    cfg.SOLVER.BASE_LR = base_lr
+    cfg.SOLVER.MAX_ITER = max_iter
     cfg.MODEL.BACKBONE.FREEZE_AT = backbone_freeze
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes # only 1 class
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = batch_size_per_im
     if not torch.cuda.is_available():
         cfg.MODEL.DEVICE = "cpu"
-    print("GPU used!")
-    cfg.SOLVER.WEIGHT_DECAY = weight_decay
-    cfg.SOLVER.BASE_LR = base_lr
+        print("CPU used!")
+    else:
+        print("GPU used!")
     cfg.OUTPUT_DIR = out_dir
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     if update_model is not None:
         cfg.MODEL.WEIGHTS = update_model
     else:
         cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(base_model)
-
-    cfg.SOLVER.IMS_PER_BATCH = ims_per_batch
-    cfg.SOLVER.BASE_LR = base_lr
-    cfg.SOLVER.MAX_ITER = max_iter
-    cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes # only 1 class
-    cfg.TEST.EVAL_PERIOD = eval_period
     cfg.RESIZE = resize
-    cfg.INPUT.MIN_SIZE_TRAIN = 1000
+    cfg.TEST.EVAL_PERIOD = eval_period
     return cfg
 
 

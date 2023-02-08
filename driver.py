@@ -19,10 +19,10 @@ from detectron2.data import (
 )
 
 # check if gpu is used
-if torch.cuda.current_device() == 0 or 1:
-    print("all used, exit training now")
-    exit
-print("gpu free to use")
+# if torch.cuda.current_device() == 0 or 1:
+#     print("all used, exit training now")
+#     exit
+# print("gpu free to use")
 
 # input paths
 site_folder = '../data/Bamberg_Hain/'
@@ -62,7 +62,7 @@ cfg = setup_cfg(base_model,
                 tests, workers=4,
                 eval_period=100,
                 update_model=str(pre_trained_model),
-                max_iter=3000,
+                max_iter=800,
                 out_dir=str(out_dir)) # update_model arg can be used to load in trained  model
 trainer = MyTrainer(cfg, patience=4)
 trainer.resume_or_load(resume=False)
