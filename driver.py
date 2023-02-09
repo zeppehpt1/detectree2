@@ -19,13 +19,10 @@ from detectron2.data import (
 )
 
 # check if gpu is used
-# if torch.cuda.current_device() == 0 or 1:
-#     print("all used, exit training now")
-#     exit
-# print("gpu free to use")
-
-# input paths
-site_folder = '../data/Bamberg_Hain/'
+if torch.cuda.current_device() == 0 or 1:
+    print("all used, exit training now")
+    exit
+print("gpu free to use")
 
 # folder setup
 # site_folder = PROJECT_ROOT / 'data' / 'Bamberg_Hain' laptop
@@ -34,14 +31,14 @@ site_name = 'Schiefer_10'
 out_dir = site_folder + 'outputs/'
 Path(out_dir).mkdir(parents=True, exist_ok=True)
 
-# # remove dataset before creation --> debugging purposes
-# dataset_name = site_name + '_train'
-# if dataset_name in DatasetCatalog.list():
-#     DatasetCatalog.remove(dataset_name)
-# dataset_name = site_name + '_val'
-# if dataset_name in DatasetCatalog.list():
-#     DatasetCatalog.remove(dataset_name)
-# print("Datasets removed")
+# remove dataset before creation --> debugging purposes
+dataset_name = site_name + '10_train'
+if dataset_name in DatasetCatalog.list():
+    DatasetCatalog.remove(dataset_name)
+dataset_name = site_name + '10_val'
+if dataset_name in DatasetCatalog.list():
+    DatasetCatalog.remove(dataset_name)
+print("Datasets removed")
 
 # register datasets
 train_location = site_folder + 'tiles/train/'
@@ -63,7 +60,9 @@ cfg = setup_cfg(base_model,
                 eval_period=100,
                 update_model=str(pre_trained_model),
                 max_iter=800,
-                out_dir=str(out_dir)) # update_model arg can be used to load in trained  model
+                out_dir=str(out_dir),
+                resize=True) # update_model arg can be used to load in trained  model
+
 trainer = MyTrainer(cfg, patience=4)
 trainer.resume_or_load(resume=False)
 trainer.train()

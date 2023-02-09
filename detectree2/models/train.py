@@ -263,6 +263,10 @@ class MyTrainer(DefaultTrainer): # using custom trainer
             ),
         )
     
+    @classmethod # overrite default methods
+    def build_test_loader(cls, cfg, dataset_name):
+        return super().build_test_loader(cfg, dataset_name)
+    
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         if output_folder is None:
@@ -270,7 +274,6 @@ class MyTrainer(DefaultTrainer): # using custom trainer
             output_folder = "eval"
         return COCOEvaluator(dataset_name, cfg, True, output_folder)
 
-    @classmethod
     def build_hooks(self):
         hooks = super().build_hooks()
         # augmentations = [T.ResizeShortestEdge(short_edge_length=(1000, 1000),
