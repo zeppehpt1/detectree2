@@ -12,6 +12,7 @@ import glob
 import cv2
 import geopandas as gpd
 import pycocotools.mask as mask_util
+import rasterio
 from fiona.crs import from_epsg
 from shapely.geometry import Polygon, box, shape
 
@@ -129,9 +130,56 @@ def to_eval_geojson(directory=None):  # noqa:N803
             print(output_geo_file)
             with open(output_geo_file, "w") as dest:
                 json.dump(geofile, dest)
+                
+def remove_very_small_polygons(crowns:gpd.GeoDataFrame,size_threshold=1.0) -> gpd.GeoDataFrame:
+    # collect the area size of each polygon
+    areas = []
+    
+    for index1, row1 in crowns.iterrows():
+        areas.append((row1.geometry.area,index1))
+    areas.sort()
+    
+    for area in areas:
+        if area[0] < size_threshold: # threshold may differ across inference images
+            output_gdf = crowns.drop(index=area[1],axis=1)
+    output_gdf = output_gdf.reset_index(drop=True)
+    return output_gdf
 
+def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8) -> gpd.GeoDataFrame:
+    """_summary_
+    
+    Removes the bigger polygon if two polygons are overlapping to a certain threshold.
+    
+    Args:
+        gdf (gpd.GeoDataFrame): _description_
+        overlapping_threshold (float, optional): _description_. Defaults to 0.8.
+    """
+    first_index = -1
+    indexes_to_remove = []
+    
+    for polygon in crowns['geometry']:  # iterate over each crown
+        first_index += 1
+        second_index = -1 # reset index
+        
+        for compare_polygon in crowns['geometry']:
+            second_index += 1
+            # Avoid comparing of an element with itself
+            if first_index != second_index:
+                intersect = polygon.intersection(compare_polygon)
+                if intersect.area > overlapping_threshold * compare_polygon.area:
+                    indexes_to_remove.append(first_index) # append the bigger polygon
+    
+    # remove rows/crowns in one step
+    indexes_to_remove = list(set(indexes_to_remove))
+    indexes_to_keep = set(range(crowns.shape[0])) - set(indexes_to_remove)
+    output_gdf = crowns.take(list(indexes_to_keep))
+    return output_gdf
 
-def project_to_geojson(data, output_fold=None, pred_fold=None):  # noqa:N803
+def remove_low_score_crowns(crowns:gpd.GeoDataFrame,confidence_threshold=0.6):
+    output_gdf = crowns.drop(crowns[crowns.Confidence_score < confidence_threshold].index)
+    return output_gdf
+
+def project_to_geojson(data_dir, output_fold=None, pred_fold=None):  # noqa:N803
     """Projects json predictions back in geographic space.
 
     Takes a json and changes it to a geojson so it can overlay with orthomosaic. Another copy is produced to overlay
@@ -140,17 +188,23 @@ def project_to_geojson(data, output_fold=None, pred_fold=None):  # noqa:N803
 
     Path(output_fold).mkdir(parents=True, exist_ok=True)
     entries = os.listdir(pred_fold)
-
-    # scale to deal with the resolution
-    scalingx = data.transform[0]
-    scalingy = -data.transform[4]
-
-    for file in entries:
+    entries.sort()
+    print("count json",len(entries))
+    
+    data_files = glob.glob(data_dir + '*.tif')
+    data_files.sort()
+    print("count tiffs",len(data_files))
+    
+    # scale to deal with the resolutio
+    for file,raster_tile in zip(entries,data_files):
         if ".json" in file:
+            data = rasterio.open(raster_tile)
+            scalingx = data.transform[0]
+            scalingy = -data.transform[4]
+            
             # create a dictionary for each file to store data used multiple times
             img_dict = {}
             img_dict["filename"] = file
-            print(img_dict["filename"])
 
             file_mins = file.replace(".json", "")
             file_mins_split = file_mins.split("_")
@@ -174,13 +228,12 @@ def project_to_geojson(data, output_fold=None, pred_fold=None):  # noqa:N803
             }
             # update the image dictionary to store all information cleanly
             img_dict.update({"minx": minx, "miny": miny, "height": height, "buffer": buffer})
-            # print("Img dict:", img_dict)
+            #print("Img dict:", img_dict)
 
             # load the json file we need to convert into a geojson
             with open(pred_fold + "/" + img_dict["filename"]) as prediction_file:
                 datajson = json.load(prediction_file)
             # print("data_json:",datajson)
-
             # json file is formated as a list of segmentation polygons so cycle through each one
             for crown_data in datajson:
                 # just a check that the crown image is correct
@@ -209,22 +262,34 @@ def project_to_geojson(data, output_fold=None, pred_fold=None):  # noqa:N803
                         # correction factors have been manually added as outputs did not line up with predictions
                         # from training script
                         # TODO: clarify these rules - see `buffer` for bottom corner and bottom edge
-                        if minx == int(data.bounds[0]) and miny == int(data.bounds[1]):
-                            # print("Bottom Corner")
-                            x_coord = (x_coord) * scalingx + minx
-                            y_coord = (height - y_coord) * scalingy - buffer + miny
-                        elif minx == int(data.bounds[0]):
-                            # print("Left Edge")
-                            x_coord = (x_coord) * scalingx + minx
-                            y_coord = (height - y_coord) * scalingy - buffer + miny
-                        elif miny == int(data.bounds[1]):
-                            # print("Bottom Edge")
-                            x_coord = (x_coord) * scalingx - buffer + minx
-                            y_coord = (height - y_coord) * scalingy - buffer + miny
-                        else:
-                            # print("Anywhere else")
-                            x_coord = (x_coord) * scalingx - buffer + minx
-                            y_coord = (height - y_coord) * scalingy - buffer + miny
+                        # if minx == int(data.bounds[0]) and miny == int(data.bounds[1]):
+                        #     # print("Bottom Corner")
+                        #     x_coord = (x_coord) * scalingx + minx
+                        #     y_coord = (height - y_coord) * scalingy - buffer + miny
+                        # elif minx == int(data.bounds[0]):
+                        #     # print("Left Edge")
+                        #     x_coord = (x_coord) * scalingx + minx
+                        #     y_coord = (height - y_coord) * scalingy - buffer + miny
+                        # elif miny == int(data.bounds[1]):
+                        #     # print("Bottom Edge")
+                        #     x_coord = (x_coord) * scalingx - buffer + minx
+                        #     y_coord = (height - y_coord) * scalingy - buffer + miny
+                        # elif counter % 4 == 0:
+                        #     x_coord = (x_coord) * scalingx - buffer + minx
+                        #     y_coord = (height - y_coord) * scalingy - (buffer*2 -10) + miny
+                        # else:
+                        #     # print("Anywhere else")
+                        #     x_coord = (x_coord) * scalingx - buffer + minx
+                        #     y_coord = (height - y_coord) * scalingy - (buffer*2 -10) + miny
+                        
+                        # if counter % 4 == 0:
+                        #     x_coord = (x_coord) * scalingx - buffer + minx
+                        #     y_coord = (height - y_coord) * scalingy - (buffer*2 -10) + miny
+                        
+                        raster_transform = data.transform
+                        x_coord,y_coord = rasterio.transform.xy(transform=raster_transform,
+                            rows=y_coord,
+                            cols=x_coord)
 
                         moved_coords.append([x_coord, y_coord])
 
