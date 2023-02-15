@@ -226,42 +226,43 @@ class MyTrainer(DefaultTrainer): # using custom trainer
             return self._last_eval_results
 
     @classmethod # overrite default methods
-    def build_train_loader(cls, cfg):
-        """Summary.
+    # def build_train_loader(cls, cfg):
+    #     """Summary.
 
-        Args:
-            cfg (_type_): _description_
+    #     Args:
+    #         cfg (_type_): _description_
 
-        Returns:
-            _type_: _description_
-        """
-        augmentations = [
-            T.RandomBrightness(0.8, 1.8),
-            T.RandomContrast(0.6, 1.3),
-            T.RandomSaturation(0.8, 1.4),
-            T.RandomRotation(angle=[90, 90], expand=False),
-            T.RandomLighting(0.7),
-            T.RandomFlip(prob=0.4, horizontal=True, vertical=False),
-            T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
-        ]
+    #     Returns:
+    #         _type_: _description_
+    #     """
+    #     augmentations = [
+    #         T.RandomBrightness(0.8, 1.8),
+    #         T.RandomContrast(0.6, 1.3),
+    #         T.RandomSaturation(0.8, 1.4),
+    #         T.RandomRotation(angle=[90, 90], expand=False),
+    #         T.RandomLighting(0.7),
+    #         T.RandomFlip(prob=0.5, horizontal=True, vertical=False),
+    #         T.RandomFlip(prob=0.5, horizontal=False, vertical=True),
+    #     ]
 
-        if cfg.RESIZE:
-            augmentations.append(T.ResizeShortestEdge((1000, 1000),max_size=1333,sample_style="choice"))
-        elif cfg.RESIZE == "random":
-            for i, datas in enumerate(DatasetCatalog.get(cfg.DATASETS.TRAIN[0])):
-                location = datas['file_name']
-                size = cv2.imread(location).shape[0]
-                break
-            print("ADD RANDOM RESIZE WITH SIZE = ", size)
-            augmentations.append(T.ResizeScale(0.6, 1.4, size, size))
-        return build_detection_train_loader(
-            cfg,
-            mapper=DatasetMapper(
-                cfg,
-                is_train=True,
-                augmentations=augmentations,
-            ),
-        )
+    #     print("Custom augmentation applied!")
+    #     if cfg.RESIZE:
+    #         augmentations.append(T.ResizeShortestEdge((1000, 1000),max_size=1333,sample_style="choice"))
+    #     elif cfg.RESIZE == "random":
+    #         for i, datas in enumerate(DatasetCatalog.get(cfg.DATASETS.TRAIN[0])):
+    #             location = datas['file_name']
+    #             size = cv2.imread(location).shape[0]
+    #             break
+    #         print("ADD RANDOM RESIZE WITH SIZE = ", size)
+    #         augmentations.append(T.ResizeScale(0.6, 1.4, size, size))
+    #     return build_detection_train_loader(
+    #         cfg,
+    #         mapper=DatasetMapper(
+    #             cfg,
+    #             is_train=True,
+    #             augmentations=augmentations,
+    #         ),
+    #     )
     
     @classmethod # overrite default methods
     def build_test_loader(cls, cfg, dataset_name):
