@@ -7,6 +7,7 @@ from pathlib import Path
 import cv2
 from detectron2.engine import DefaultPredictor
 from detectron2.evaluation.coco_evaluation import instances_to_coco_json
+from tqdm import tqdm
 
 from detectree2.models.train import get_filenames, get_tree_dicts
 
@@ -43,7 +44,7 @@ def predict_on_data(
     else:
         num_to_pred = num_predictions
 
-    for d in random.sample(dataset_dicts, num_to_pred):
+    for d in tqdm(random.sample(dataset_dicts, num_to_pred)):
         img = cv2.imread(d["file_name"])
         outputs = predictor(img)
 
@@ -53,7 +54,7 @@ def predict_on_data(
         file_name = os.path.basename(os.path.normpath(file_name_path))
         file_name = file_name.replace("png", "json")
         output_file = os.path.join(pred_dir, f"Prediction_{file_name}")
-        print(output_file)
+        #print(output_file)
 
         if save:
             # Converting the predictions to json files and saving them in the

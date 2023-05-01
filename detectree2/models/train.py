@@ -225,8 +225,76 @@ class MyTrainer(DefaultTrainer): # using custom trainer
             verify_results(self.cfg, self._last_eval_results)
             return self._last_eval_results
 
-    @classmethod # overrite default methods
-    def build_train_loader(cls, cfg):
+    # @classmethod # overrite default methods
+    # def build_train_loader(cls, cfg):
+    #     """Summary.
+
+    #     Args:
+    #         cfg (_type_): _description_
+
+    #     Returns:
+    #         _type_: _description_
+    #     """
+    #     augmentations = [
+    #         T.RandomBrightness(0.8, 1.8),
+    #         T.RandomContrast(0.6, 1.3),
+    #         T.RandomSaturation(0.8, 1.4),
+    #         T.RandomRotation(angle=[90, 90], expand=False),
+    #         T.RandomLighting(0.7),
+    #         T.RandomFlip(prob=0.4, horizontal=True, vertical=False),
+    #         T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
+    #     ]
+
+    #     if cfg.RESIZE:
+    #         augmentations.append(T.ResizeShortestEdge((1000, 1000),max_size=1333,sample_style="choice"))
+    #     elif cfg.RESIZE == "random":
+    #         for i, datas in enumerate(DatasetCatalog.get(cfg.DATASETS.TRAIN[0])):
+    #             location = datas['file_name']
+    #             size = cv2.imread(location).shape[0]
+    #             break
+    #         print("ADD RANDOM RESIZE WITH SIZE = ", size)
+    #         augmentations.append(T.ResizeScale(0.6, 1.4, size, size))
+    #     return build_detection_train_loader(
+    #         cfg,
+    #         mapper=DatasetMapper(
+    #             cfg,
+    #             is_train=True,
+    #             augmentations=augmentations,
+    #         ),
+    #     )
+    
+    # @classmethod # overrite default methods
+    # def build_test_loader(cls, cfg, dataset_name):
+    #     return super().build_test_loader(cfg, dataset_name)
+    
+    @classmethod
+    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+        if output_folder is None:
+            os.makedirs("eval", exist_ok=True)
+            output_folder = "eval"
+        return COCOEvaluator(dataset_name, cfg, True, output_folder)
+
+    def build_hooks(self):
+        hooks = super().build_hooks()
+        # augmentations = [T.ResizeShortestEdge(short_edge_length=(1000, 1000),
+        #                                     max_size=1333,
+        #                                     sample_style='choice')]
+        hooks.insert(
+            -1,
+            LossEvalHook(
+                self.cfg.TEST.EVAL_PERIOD,
+                self.model,
+                build_detection_test_loader(
+                    self.cfg,
+                    self.cfg.DATASETS.TEST,
+                    DatasetMapper(self.cfg, True)
+                ),
+                self.patience,
+            ),
+        )
+        return hooks
+
+def build_train_loader(cls, cfg):
         """Summary.
 
         Args:
@@ -262,37 +330,6 @@ class MyTrainer(DefaultTrainer): # using custom trainer
                 augmentations=augmentations,
             ),
         )
-    
-    @classmethod # overrite default methods
-    def build_test_loader(cls, cfg, dataset_name):
-        return super().build_test_loader(cfg, dataset_name)
-    
-    @classmethod
-    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
-        if output_folder is None:
-            os.makedirs("eval", exist_ok=True)
-            output_folder = "eval"
-        return COCOEvaluator(dataset_name, cfg, True, output_folder)
-
-    def build_hooks(self):
-        hooks = super().build_hooks()
-        # augmentations = [T.ResizeShortestEdge(short_edge_length=(1000, 1000),
-        #                                     max_size=1333,
-        #                                     sample_style='choice')]
-        hooks.insert(
-            -1,
-            LossEvalHook(
-                self.cfg.TEST.EVAL_PERIOD,
-                self.model,
-                build_detection_test_loader(
-                    self.cfg,
-                    self.cfg.DATASETS.TEST,
-                    DatasetMapper(self.cfg, True)
-                ),
-                self.patience,
-            ),
-        )
-        return hooks
 
 def get_tree_dicts(directory: str, classes: List[str] = None, classes_at: str = None) -> List[Dict]:
     """Get the tree dictionaries.
@@ -346,31 +383,30 @@ def get_tree_dicts(directory: str, classes: List[str] = None, classes_at: str = 
         objs = []
         for features in img_anns["features"]:
             anno = features["geometry"]
-            # pdb.set_trace()
-            # GenusSpecies = features['properties']['Genus_Species']
-            px = [a[0] for a in anno["coordinates"][0]]
-            py = [np.array(height) - a[1] for a in anno["coordinates"][0]]
-            # print("### HERE IS PY ###", py)
-            poly = [(x, y) for x, y in zip(px, py)]
-            poly = [p for x in poly for p in x]
-            # print("#### HERE ARE SOME POLYS #####", poly)
-            if classes != ["tree"]:
-                obj = {
-                    "bbox": [np.min(px), np.min(py), np.max(px), np.max(py)],
-                    "bbox_mode": BoxMode.XYXY_ABS,
-                    "segmentation": [poly],
-                    "category_id": classes.index(features["properties"][classes_at]),  # id
-                    # "category_id": 0,  #id
-                    "iscrowd": 0,
-                }
-            else:
-                obj = {
-                    "bbox": [np.min(px), np.min(py), np.max(px), np.max(py)],
-                    "bbox_mode": BoxMode.XYXY_ABS,
-                    "segmentation": [poly],
-                    "category_id": 0,  # id
-                    "iscrowd": 0,
-                }
+            if anno['type'] != 'LineString':
+                px = [a[0] for a in anno["coordinates"][0]] # origional way
+                py = [np.array(height) - a[1] for a in anno["coordinates"][0]]
+                # print("### HERE IS PY ###", py)
+                poly = [(x, y) for x, y in zip(px, py)]
+                poly = [p for x in poly for p in x]
+                # print("#### HERE ARE SOME POLYS #####", poly)
+                if classes != ["tree"]:
+                    obj = {
+                        "bbox": [np.min(px), np.min(py), np.max(px), np.max(py)],
+                        "bbox_mode": BoxMode.XYXY_ABS,
+                        "segmentation": [poly],
+                        "category_id": classes.index(features["properties"][classes_at]),  # id
+                        # "category_id": 0,  #id
+                        "iscrowd": 0,
+                    }
+                else:
+                    obj = {
+                        "bbox": [np.min(px), np.min(py), np.max(px), np.max(py)],
+                        "bbox_mode": BoxMode.XYXY_ABS,
+                        "segmentation": [poly],
+                        "category_id": 0,  # id
+                        "iscrowd": 0,
+                    }
             # pdb.set_trace()
             objs.append(obj)
             # print("#### HERE IS OBJS #####", objs)
@@ -556,11 +592,14 @@ def setup_cfg(
     cfg.MODEL.BACKBONE.FREEZE_AT = backbone_freeze
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes # only 1 class
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = batch_size_per_im
-    if not torch.cuda.is_available():
-        cfg.MODEL.DEVICE = "cpu"
-        print("CPU used!")
-    else:
-        print("GPU used!")
+    use_cuda = torch.cuda.is_available()
+    if use_cuda:
+        print('__CUDNN VERSION:', torch.backends.cudnn.version())
+        print('__Number CUDA Devices:', torch.cuda.device_count())
+        print('__CUDA Device Name:',torch.cuda.get_device_name(0))
+        print('__CUDA Device Total Memory [GB]:',torch.cuda.get_device_properties(0).total_memory/1e9)
+    device = torch.device("cuda:1" if use_cuda else "cpu")
+    print("Device: ", device)
     cfg.OUTPUT_DIR = out_dir
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     if update_model is not None:

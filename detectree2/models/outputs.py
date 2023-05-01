@@ -13,6 +13,7 @@ import cv2
 import geopandas as gpd
 import pycocotools.mask as mask_util
 import rasterio
+from tqdm import tqdm
 from fiona.crs import from_epsg
 from shapely.geometry import Polygon, box, shape
 
@@ -134,15 +135,19 @@ def to_eval_geojson(directory=None):  # noqa:N803
 def remove_very_small_polygons(crowns:gpd.GeoDataFrame,size_threshold=1.0) -> gpd.GeoDataFrame:
     # collect the area size of each polygon
     areas = []
+    removed = 0
     
     for index1, row1 in crowns.iterrows():
         areas.append((row1.geometry.area,index1))
     areas.sort()
     
+    output_gdf = crowns
     for area in areas:
         if area[0] < size_threshold: # threshold may differ across inference images
             output_gdf = crowns.drop(index=area[1],axis=1)
-    output_gdf = output_gdf.reset_index(drop=True)
+            output_gdf = output_gdf.reset_index(drop=True)
+            removed += 1
+    print("Removed",removed,"very small crowns!")
     return output_gdf
 
 def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8) -> gpd.GeoDataFrame:
@@ -172,11 +177,19 @@ def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8)
     # remove rows/crowns in one step
     indexes_to_remove = list(set(indexes_to_remove))
     indexes_to_keep = set(range(crowns.shape[0])) - set(indexes_to_remove)
+    print("Removed",len(indexes_to_remove),"Overlapping Crowns")
     output_gdf = crowns.take(list(indexes_to_keep))
+    output_gdf = output_gdf.reset_index(drop=True)
     return output_gdf
 
 def remove_low_score_crowns(crowns:gpd.GeoDataFrame,confidence_threshold=0.6):
+    input_gdf_len = len(crowns)
     output_gdf = crowns.drop(crowns[crowns.Confidence_score < confidence_threshold].index)
+    output_gdf_len = len(output_gdf)
+    if input_gdf_len != output_gdf_len:
+        remove_count = input_gdf_len - output_gdf_len
+        print("Removed", str(remove_count), "crowns with a threshold lower than", str(confidence_threshold))
+    output_gdf = output_gdf.reset_index(drop=True)
     return output_gdf
 
 def project_to_geojson(data_dir, output_fold=None, pred_fold=None):  # noqa:N803
@@ -185,7 +198,6 @@ def project_to_geojson(data_dir, output_fold=None, pred_fold=None):  # noqa:N803
     Takes a json and changes it to a geojson so it can overlay with orthomosaic. Another copy is produced to overlay
     with PNGs.
     """
-
     Path(output_fold).mkdir(parents=True, exist_ok=True)
     entries = os.listdir(pred_fold)
     entries.sort()
@@ -195,10 +207,11 @@ def project_to_geojson(data_dir, output_fold=None, pred_fold=None):  # noqa:N803
     data_files.sort()
     print("count tiffs",len(data_files))
     
-    # scale to deal with the resolutio
-    for file,raster_tile in zip(entries,data_files):
+    for file,raster_tile in tqdm(zip(entries, data_files), total=len(entries)):
         if ".json" in file:
             data = rasterio.open(raster_tile)
+            
+            # scale to deal with the resolutio
             scalingx = data.transform[0]
             scalingy = -data.transform[4]
             
@@ -254,37 +267,6 @@ def project_to_geojson(data_dir, output_fold=None, pred_fold=None):  # noqa:N803
                     for c in range(0, len(crown_coords), 2):
                         x_coord = crown_coords[c]
                         y_coord = crown_coords[c + 1]
-
-                        # print("ycoord:", y_coord)
-                        # print("height:", height)
-
-                        # rescaling the coords depending on where the tile is in the original image, note the
-                        # correction factors have been manually added as outputs did not line up with predictions
-                        # from training script
-                        # TODO: clarify these rules - see `buffer` for bottom corner and bottom edge
-                        # if minx == int(data.bounds[0]) and miny == int(data.bounds[1]):
-                        #     # print("Bottom Corner")
-                        #     x_coord = (x_coord) * scalingx + minx
-                        #     y_coord = (height - y_coord) * scalingy - buffer + miny
-                        # elif minx == int(data.bounds[0]):
-                        #     # print("Left Edge")
-                        #     x_coord = (x_coord) * scalingx + minx
-                        #     y_coord = (height - y_coord) * scalingy - buffer + miny
-                        # elif miny == int(data.bounds[1]):
-                        #     # print("Bottom Edge")
-                        #     x_coord = (x_coord) * scalingx - buffer + minx
-                        #     y_coord = (height - y_coord) * scalingy - buffer + miny
-                        # elif counter % 4 == 0:
-                        #     x_coord = (x_coord) * scalingx - buffer + minx
-                        #     y_coord = (height - y_coord) * scalingy - (buffer*2 -10) + miny
-                        # else:
-                        #     # print("Anywhere else")
-                        #     x_coord = (x_coord) * scalingx - buffer + minx
-                        #     y_coord = (height - y_coord) * scalingy - (buffer*2 -10) + miny
-                        
-                        # if counter % 4 == 0:
-                        #     x_coord = (x_coord) * scalingx - buffer + minx
-                        #     y_coord = (height - y_coord) * scalingy - (buffer*2 -10) + miny
                         
                         raster_transform = data.transform
                         x_coord,y_coord = rasterio.transform.xy(transform=raster_transform,
