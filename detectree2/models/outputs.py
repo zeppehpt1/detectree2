@@ -201,11 +201,11 @@ def project_to_geojson(data_dir, output_fold=None, pred_fold=None):  # noqa:N803
     Path(output_fold).mkdir(parents=True, exist_ok=True)
     entries = os.listdir(pred_fold)
     entries.sort()
-    print("count json",len(entries))
+    #print("count json",len(entries))
     
     data_files = glob.glob(data_dir + '*.tif')
     data_files.sort()
-    print("count tiffs",len(data_files))
+    #print("count tiffs",len(data_files))
     
     for file,raster_tile in tqdm(zip(entries, data_files), total=len(entries)):
         if ".json" in file:
