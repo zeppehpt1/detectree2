@@ -6,7 +6,6 @@ from detectree2.models import train
 import PIL
 PIL.Image.MAX_IMAGE_PIXELS = 206049024
 
-import torch
 import importlib
 import os
 os.environ['USE_PYGEOS'] = '0'
@@ -14,9 +13,6 @@ importlib.reload(tiling)
 importlib.reload(train)
 
 from detectree2.models.train import register_train_data, MyTrainer, setup_cfg
-from detectron2.data import (
-    DatasetCatalog
-)
 
 # folder setup
 site_folder = '../data/'

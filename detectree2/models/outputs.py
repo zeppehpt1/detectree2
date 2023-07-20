@@ -17,6 +17,9 @@ from tqdm import tqdm
 from fiona.crs import from_epsg
 from shapely.geometry import Polygon, box, shape
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 def polygon_from_mask(masked_arr):
     """Convert RLE data from the output instances into Polygons.
