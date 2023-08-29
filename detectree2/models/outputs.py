@@ -134,27 +134,34 @@ def to_eval_geojson(directory=None):  # noqa:N803
             print(output_geo_file)
             with open(output_geo_file, "w") as dest:
                 json.dump(geofile, dest)
-                
-def remove_very_small_polygons(crowns:gpd.GeoDataFrame,size_threshold=1.0) -> gpd.GeoDataFrame:
-    # collect the area size of each polygon
+
+def remove_very_small_polygons(crowns:gpd.GeoDataFrame ,size_threshold=1.0) -> gpd.GeoDataFrame:
+    """Removes small fragmentary crowns below the threshold.
+
+    Args:
+        crowns (gpd.GeoDataFrame): _description_
+        size_threshold (float, optional): _description_. Defaults to 1.0.
+
+    Returns:
+        gpd.GeoDataFrame: _description_
+    """
     areas = []
-    removed = 0
-    
+    indexes_to_remove = []
     for index1, row1 in crowns.iterrows():
-        areas.append((row1.geometry.area,index1))
+        areas.append((row1.geometry.area, index1))
     areas.sort()
-    
-    output_gdf = crowns
     for area in areas:
         if area[0] < size_threshold: # threshold may differ across inference images
-            output_gdf = crowns.drop(index=area[1],axis=1)
-            output_gdf = output_gdf.reset_index(drop=True)
-            removed += 1
-    print("Removed",removed,"very small crowns!")
+            indexes_to_remove.append(area[1])
+    indexes_to_remove = list(set(indexes_to_remove))
+    indexes_to_keep = set(range(crowns.shape[0])) - set(indexes_to_remove)
+    print("Removed",len(indexes_to_remove),"very small crowns!")
+    output_gdf = crowns.take(list(indexes_to_keep))
+    output_gdf = output_gdf.reset_index(drop=True)
     return output_gdf
 
 def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8) -> gpd.GeoDataFrame:
-    """_summary_
+    """
     
     Removes the bigger polygon if two polygons are overlapping to a certain threshold.
     
@@ -164,11 +171,9 @@ def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8)
     """
     first_index = -1
     indexes_to_remove = []
-    
     for polygon in crowns['geometry']:  # iterate over each crown
         first_index += 1
         second_index = -1 # reset index
-        
         for compare_polygon in crowns['geometry']:
             second_index += 1
             # Avoid comparing of an element with itself
@@ -176,7 +181,6 @@ def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8)
                 intersect = polygon.intersection(compare_polygon)
                 if intersect.area > overlapping_threshold * compare_polygon.area:
                     indexes_to_remove.append(first_index) # append the bigger polygon
-    
     # remove rows/crowns in one step
     indexes_to_remove = list(set(indexes_to_remove))
     indexes_to_keep = set(range(crowns.shape[0])) - set(indexes_to_remove)
@@ -373,9 +377,10 @@ def clean_crowns(crowns: gpd.GeoDataFrame, iou_threshold=0.7):
     lower Confidence Score.
     """
     crowns_out = gpd.GeoDataFrame()
+    # TODO: implement tqdm function on iterrow loop
     for index, row in crowns.iterrows():  # iterate over each crown
-        if index % 1000 == 0:
-            print(str(index) + " / " + str(len(crowns)) + " cleaned")
+        #if index % 1000 == 0:
+            #print(str(index) + " / " + str(len(crowns)) + " cleaned")
         # if there is not a crown interesects with the row (other than itself)
         if crowns.intersects(shape(row.geometry)).sum() == 1:
             crowns_out = crowns_out.append(row)  # retain it
@@ -401,6 +406,7 @@ def clean_crowns(crowns: gpd.GeoDataFrame, iou_threshold=0.7):
                 match = match.drop("iou", axis=1)
                 # print(index)
                 crowns_out = crowns_out.append(match)
+    print("stichted crowns")
     return crowns_out.reset_index()
 
 
