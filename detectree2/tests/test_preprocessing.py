@@ -89,8 +89,8 @@ class TestCase(unittest.TestCase):
         print(file_root)
         from detectree2.preprocessing.tiling import image_details
         xbox_coords, ybox_coords = image_details(file_root)
-        self.assertEqual(xbox_coords, (286523, 286593))
-        self.assertEqual(ybox_coords, (583696, 583766))
+        self.assertEqual(xbox_coords, (286539, 286609))
+        self.assertEqual(ybox_coords, (583712, 583782))
 
     # @pytest.mark.dependency(depends=["test_tiling"]) # SKIPS tests - does not resolve order
     @pytest.mark.order(3)

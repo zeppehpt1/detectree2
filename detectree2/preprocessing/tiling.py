@@ -9,6 +9,7 @@ import os
 import random
 import shutil
 import warnings
+from math import ceil
 from pathlib import Path
 
 import cv2
@@ -16,6 +17,7 @@ import geopandas as gpd
 import numpy as np
 import rasterio
 from fiona.crs import from_epsg  # noqa: F401
+from rasterio.crs import CRS
 from rasterio.io import DatasetReader
 from rasterio.mask import mask
 from shapely.geometry import box
@@ -69,18 +71,25 @@ def tile_data(
     Returns:
         None
     """
-    # Should clip data to crowns straight off to speed things up
-    os.makedirs(out_dir, exist_ok=True)
-    crs = data.crs.data["init"].split(":")[1]
+    out_path = Path(out_dir)
+    os.makedirs(out_path, exist_ok=True)
+    crs = CRS.from_string(data.crs.wkt)
+    crs = crs.to_epsg()
     tilename = Path(data.name).stem
-    # out_img, out_transform = mask(data, shapes=crowns.buffer(buffer), crop=True)
+
+    total_tiles = int(((data.bounds[2] - data.bounds[0]) / tile_width) * ((data.bounds[3] - data.bounds[1]) / tile_height))
+
+    tile_count = 0
+    print(f"Tiling to {total_tiles} total tiles")
+
     for minx in np.arange(data.bounds[0], data.bounds[2] - tile_width,
                           tile_width, int):
         for miny in np.arange(data.bounds[1], data.bounds[3] - tile_height,
                               tile_height, int):
+            
+            tile_count += 1
             # Naming conventions
-            out_path_root = out_dir + tilename + "_" + str(minx) + "_" + str(
-                miny) + "_" + str(tile_width) + "_" + str(buffer) + "_" + crs
+            out_path_root = out_path / f"{tilename}_{minx}_{miny}_{tile_width}_{buffer}_{crs}"
             # new tiling bbox including the buffer
             bbox = box(
                 minx - buffer,
@@ -135,7 +144,7 @@ def tile_data(
             # If tile appears blank in folder can show the image here and may
             # need to fix RGB data or the dtype
             # show(out_img)
-            out_tif = out_path_root + ".tif"
+            out_tif = out_path_root.with_suffix(out_path_root.suffix + ".tif")
             with rasterio.open(out_tif, "w", **out_meta) as dest:
                 dest.write(out_img)
 
@@ -164,9 +173,13 @@ def tile_data(
             # save this as jpg or png...we are going for png...again, named with the origin of the specific tile
             # here as a naughty method
             cv2.imwrite(
-                out_path_root + ".png",
+                str(out_path_root.with_suffix(out_path_root.suffix + ".png").resolve()),
                 rgb_rescaled,
             )
+            if tile_count % 50 == 0:
+                print(f"Processed {tile_count} tiles of {total_tiles} tiles")
+    
+    print("Tiling complete")
 
 
 def tile_data_train(  # noqa: C901
@@ -205,25 +218,34 @@ def tile_data_train(  # noqa: C901
     out_path = Path(out_dir)
     os.makedirs(out_path, exist_ok=True)
     tilename = Path(data.name).stem
-    crs = data.crs.data["init"].split(":")[1]
+    crs = CRS.from_string(data.crs.wkt)
+    crs = crs.to_epsg()
     # out_img, out_transform = mask(data, shapes=crowns.buffer(buffer), crop=True)
-    for minx in np.arange(data.bounds[0], data.bounds[2] - tile_width, tile_width, int):
-        for miny in np.arange(data.bounds[1], data.bounds[3] - tile_height, tile_height, int):
+    # Should start from data.bounds[0] + buffer, data.bounds[1] + buffer to avoid later complications
+    for minx in np.arange(ceil(data.bounds[0]) + buffer, data.bounds[2] - tile_width - buffer, tile_width, int):
+        for miny in np.arange(ceil(data.bounds[1]) + buffer, data.bounds[3] - tile_height - buffer, tile_height, int):
 
             out_path_root = out_path / f"{tilename}_{minx}_{miny}_{tile_width}_{buffer}_{crs}"
-            # new tiling bbox including the buffer
-            bbox = box(
-                minx - buffer,
-                miny - buffer,
-                minx + tile_width + buffer,
-                miny + tile_height + buffer,
-            )
 
-            # turn the bounding boxes into geopandas DataFrames
-            geo = gpd.GeoDataFrame({"geometry": bbox},
-                                   index=[0],
-                                   crs=data.crs)
+            # Calculate the buffered tile dimensions
+            # tile_width_buffered = tile_width + 2 * buffer
+            # tile_height_buffered = tile_height + 2 * buffer
 
+            # Calculate the bounding box coordinates with buffer
+            minx_buffered = minx - buffer
+            miny_buffered = miny - buffer
+            maxx_buffered = minx + tile_width + buffer
+            maxy_buffered = miny + tile_height + buffer
+
+            # Create the affine transformation matrix for the tile
+            # transform = from_bounds(minx_buffered, miny_buffered, maxx_buffered,
+            #                        maxy_buffered, tile_width_buffered, tile_height_buffered)
+
+            bbox = box(minx_buffered, miny_buffered, maxx_buffered, maxy_buffered)
+            geo = gpd.GeoDataFrame({"geometry": bbox}, index=[0], crs=data.crs)
+            coords = get_features(geo)
+
+            # Skip if insufficient coverage of crowns - good to have early on to save on unnecessary processing
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 # Warning:
@@ -238,9 +260,6 @@ def tile_data_train(  # noqa: C901
                 if (overlapping_crowns.dissolve().area[0] / geo.area[0]) < threshold:
                     print("discarded a tile")
                     continue
-
-            # here we are cropping the tiff to the bounding box of the tile we want
-            coords = get_features(geo)
 
             # define the tile as a mask of the whole tiff with just the bounding box
             out_img, out_transform = mask(data, shapes=coords, crop=True)
@@ -257,8 +276,6 @@ def tile_data_train(  # noqa: C901
             elif sumnan > nan_threshold * totalpix:  # reject tiles with many NaN cells
                 continue
 
-            # copy the metadata then update it, the "nodata" and "dtype" where important as made larger
-            # tifs have outputted tiles which were not just black
             out_meta = data.meta.copy()
             out_meta.update({
                 "driver": "GTiff",
@@ -267,8 +284,7 @@ def tile_data_train(  # noqa: C901
                 "transform": out_transform,
                 "nodata": None,
             })
-
-            # dtype needs to be unchanged for some data and set to uint8 for others
+            # dtype needs to be unchanged for some data and set to uint8 for others to deal with black tiles
             if dtype_bool:
                 out_meta.update({"dtype": "uint8"})
 
@@ -316,20 +332,8 @@ def tile_data_train(  # noqa: C901
 
             overlapping_crowns = overlapping_crowns.explode(index_parts=True)
 
-            # translate to 0,0 to overlay on png
-            # this now works as a universal approach.
-            if minx == data.bounds[0] and miny == data.bounds[1]:
-                # print("We are in the bottom left!")
-                moved = overlapping_crowns.translate(-minx, -miny)
-            elif miny == data.bounds[1]:
-                # print("We are on the bottom, but not bottom left")
-                moved = overlapping_crowns.translate(-minx + buffer, -miny)
-            elif minx == data.bounds[0]:
-                # print("We are along the left hand side, but not bottom left!")
-                moved = overlapping_crowns.translate(-minx, -miny + buffer)
-            else:
-                # print("We are in the middle!")
-                moved = overlapping_crowns.translate(-minx + buffer, -miny + buffer)
+            # Translate to 0,0 to overlay on png
+            moved = overlapping_crowns.translate(-minx + buffer, -miny + buffer)
 
             # scale to deal with the resolution
             scalingx = 1 / (data.transform[0])
@@ -376,6 +380,8 @@ def tile_data_train(  # noqa: C901
             except ValueError:
                 print("Cannot write empty DataFrame to file.")
                 continue
+    
+    print("Tiling complete")
 
 
 def image_details(fileroot):
@@ -425,7 +431,16 @@ def is_overlapping_box(test_boxes_array, train_box):
 def record_data(crowns,
                 out_dir,
                 column='status'):
-    """Function that will record a list of classes into a file that can be readed during training."""
+    """Function that will record a list of classes into a file that can be readed during training.
+
+    Args:
+        crowns: gpd dataframe with the crowns
+        out_dir: directory to save the file
+        column: column name to get the classes from
+
+    Returns:
+        None
+    """
 
     list_of_classes = crowns[column].unique().tolist()
 
@@ -441,18 +456,23 @@ def record_data(crowns,
     f.close()
 
 
-def to_traintest_folders(tiles_folder: str = "./",
-                         out_folder: str = "./data/",
-                         test_frac: float = 0.2,
-                         folds: int = 1,
-                         seed: int = None) -> None:
-    """Send tiles to training (+validation) and test dir and automatically make sure no overlap.
+def to_traintest_folders(  # noqa: C901
+        tiles_folder: str = "./",
+        out_folder: str = "./data/",
+        test_frac: float = 0.2,
+        folds: int = 1,
+        strict: bool = False,
+        seed: int = None) -> None:
+    """Send tiles to training (+validation) and test dir
+
+    With "strict" it is possible to automatically ensure no overlap between train/val and test tiles.
 
     Args:
-        tiles_folder:
-        out_folder:
-        test_frac:
-        folds:
+        tiles_folder: folder with tiles
+        out_folder: folder to save train and test folders
+        test_frac: fraction of tiles to be used for testing
+        folds: number of folds to split the data into
+        strict: if True, training/validation files will be removed if there is any overlap with test files (inc buffer)
 
     Returns:
         None
@@ -484,14 +504,18 @@ def to_traintest_folders(tiles_folder: str = "./",
 
     for i in range(0, len(file_roots)):
         # copy to test
-        if i <= len(file_roots) * test_frac:
+        if i < len(file_roots) * test_frac:
             test_boxes.append(image_details(file_roots[num[i]]))
             shutil.copy((tiles_dir / file_roots[num[i]]).with_suffix(
                 Path(file_roots[num[i]]).suffix + ".geojson"), out_dir / "test")
         else:
             # copy to train
             train_box = image_details(file_roots[num[i]])
-            if not is_overlapping_box(test_boxes, train_box):
+            if strict:   # check if there is overlap with test boxes
+                if not is_overlapping_box(test_boxes, train_box):
+                    shutil.copy((tiles_dir / file_roots[num[i]]).with_suffix(
+                        Path(file_roots[num[i]]).suffix + ".geojson"), out_dir / "train")
+            else:
                 shutil.copy((tiles_dir / file_roots[num[i]]).with_suffix(
                     Path(file_roots[num[i]]).suffix + ".geojson"), out_dir / "train")
 
