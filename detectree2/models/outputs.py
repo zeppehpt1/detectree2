@@ -147,15 +147,15 @@ def to_eval_geojson(directory=None):  # noqa:N803
             with open(output_geo_file, "w") as dest:
                 json.dump(geofile, dest)
 
-def remove_very_small_polygons(crowns:gpd.GeoDataFrame ,size_threshold=1.0) -> gpd.GeoDataFrame:
-    """Removes small fragmentary crowns below the threshold.
+def remove_very_big_polygons(crowns:gpd.GeoDataFrame, size_threshold=1000.0) -> gpd.GeoDataFrame:
+    """Removes large crowns above or equal to the threshold, which are mostly false positives.
 
     Args:
-        crowns (gpd.GeoDataFrame): _description_
-        size_threshold (float, optional): _description_. Defaults to 1.0.
+        crowns (gpd.GeoDataFrame): A GeoDataFrame with big unusual crowns.
+        size_threshold (float, optional): given in m² (square meter). Defaults to 1000.0.
 
     Returns:
-        gpd.GeoDataFrame: _description_
+        gpd.GeoDataFrame: A GeoDataFrame with no very large unusual crowns.
     """
     areas = []
     indexes_to_remove = []
@@ -163,7 +163,32 @@ def remove_very_small_polygons(crowns:gpd.GeoDataFrame ,size_threshold=1.0) -> g
         areas.append((row1.geometry.area, index1))
     areas.sort()
     for area in areas:
-        if area[0] < size_threshold: # threshold may differ across inference images
+        if area[0] >= size_threshold: # threshold may differ across inference images
+            indexes_to_remove.append(area[1])
+    indexes_to_remove = list(set(indexes_to_remove))
+    indexes_to_keep = set(range(crowns.shape[0])) - set(indexes_to_remove)
+    print("Removed",len(indexes_to_remove),"very big crowns!")
+    output_gdf = crowns.take(list(indexes_to_keep))
+    output_gdf = output_gdf.reset_index(drop=True)
+    return output_gdf
+
+def remove_very_small_polygons(crowns:gpd.GeoDataFrame, size_threshold=1.0) -> gpd.GeoDataFrame:
+    """Removes small fragmentary crowns below or equal to the threshold.
+
+    Args:
+        crowns (gpd.GeoDataFrame): A GeoDataFrame with small fragmentary crowns.
+        size_threshold (float, optional): given in m² (square meter). Defaults to 1.0.
+
+    Returns:
+        gpd.GeoDataFrame: A GeoDataFrame with no small fragmentary crowns.
+    """
+    areas = []
+    indexes_to_remove = []
+    for index1, row1 in crowns.iterrows():
+        areas.append((row1.geometry.area, index1))
+    areas.sort()
+    for area in areas:
+        if area[0] <= size_threshold: # threshold may differ across inference images
             indexes_to_remove.append(area[1])
     indexes_to_remove = list(set(indexes_to_remove))
     indexes_to_keep = set(range(crowns.shape[0])) - set(indexes_to_remove)
@@ -172,14 +197,15 @@ def remove_very_small_polygons(crowns:gpd.GeoDataFrame ,size_threshold=1.0) -> g
     output_gdf = output_gdf.reset_index(drop=True)
     return output_gdf
 
-def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8) -> gpd.GeoDataFrame:
-    """
-    
-    Removes the bigger polygon if two polygons are overlapping to a certain threshold.
+def remove_overlapping_crowns(crowns:gpd.GeoDataFrame, overlapping_threshold=0.8) -> gpd.GeoDataFrame:
+    """Removes the bigger polygon if two polygons are overlapping to a certain threshold.
     
     Args:
-        gdf (gpd.GeoDataFrame): _description_
-        overlapping_threshold (float, optional): _description_. Defaults to 0.8.
+        gdf (gpd.GeoDataFrame): A GeoDataFrame with overlapping crowns.
+        overlapping_threshold (float, optional): Threshold to which the larger crown overlaps a smaller one. Defaults to 0.8.
+        
+    Returns:
+        gpd.GeoDataFrame: A GeoDataFrame with no overlapping crowns.
     """
     first_index = -1
     indexes_to_remove = []
@@ -201,13 +227,13 @@ def remove_overlapping_crowns(crowns:gpd.GeoDataFrame,overlapping_threshold=0.8)
     output_gdf = output_gdf.reset_index(drop=True)
     return output_gdf
 
-def remove_low_score_crowns(crowns:gpd.GeoDataFrame,confidence_threshold=0.6):
+def remove_low_score_crowns(crowns:gpd.GeoDataFrame, confidence_threshold=0.6):
     input_gdf_len = len(crowns)
     output_gdf = crowns.drop(crowns[crowns.Confidence_score < confidence_threshold].index)
     output_gdf_len = len(output_gdf)
     if input_gdf_len != output_gdf_len:
         remove_count = input_gdf_len - output_gdf_len
-        print("Removed", str(remove_count), "crowns with a threshold lower than", str(confidence_threshold))
+    print("Removed", str(remove_count), "crowns with a threshold lower than", str(confidence_threshold))
     output_gdf = output_gdf.reset_index(drop=True)
     return output_gdf
 
