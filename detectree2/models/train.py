@@ -600,14 +600,17 @@ def setup_cfg(
     cfg.MODEL.BACKBONE.FREEZE_AT = backbone_freeze
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes # only 1 class
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = batch_size_per_im
-    use_cuda = torch.cuda.is_available()
-    if use_cuda:
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    print("Using device: ", device)
+    print()
+    
+    #additional info
+    if device.type == 'cuda':
         print('__CUDNN VERSION:', torch.backends.cudnn.version())
-        print('__Number CUDA Devices:', torch.cuda.device_count())
-        print('__CUDA Device Name:',torch.cuda.get_device_name(0))
-        print('__CUDA Device Total Memory [GB]:',torch.cuda.get_device_properties(0).total_memory/1e9)
-    device = torch.device("cuda:1" if use_cuda else "cpu")
-    print("Device: ", device)
+        print('__CUDA Device Name:',torch.cuda.get_device_name(1))
+        print('__CUDA Device Total Memory [GB]:',torch.cuda.get_device_properties(1).total_memory/1e9)
+        print('Allocated:', round(torch.cuda.memory_allocated(1)/1024**3,1), 'GB')
+        print('Cached:   ', round(torch.cuda.memory_reserved(1)/1024**3,1), 'GB')
     cfg.OUTPUT_DIR = out_dir
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     if update_model is not None:

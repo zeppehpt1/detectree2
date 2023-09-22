@@ -229,6 +229,7 @@ def remove_overlapping_crowns(crowns:gpd.GeoDataFrame, overlapping_threshold=0.8
 
 def remove_low_score_crowns(crowns:gpd.GeoDataFrame, confidence_threshold=0.6):
     input_gdf_len = len(crowns)
+    remove_count = 0
     output_gdf = crowns.drop(crowns[crowns.Confidence_score < confidence_threshold].index)
     output_gdf_len = len(output_gdf)
     if input_gdf_len != output_gdf_len:
