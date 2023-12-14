@@ -9,23 +9,39 @@
 
 <!-- <a href="https://github.com/hhatto/autopep8"><img alt="Code style: autopep8" src="https://img.shields.io/badge/code%20style-autopep8-000000.svg"></a> -->
 
+
 Python package for automatic tree crown delineation based on Mask R-CNN. Pre-trained models can be picked in the [`model_garden`](https://github.com/PatBall1/detectree2/tree/master/model_garden).
 A tutorial on how to prepare data, train models and make predictions is available [here](https://patball1.github.io/detectree2/tutorial.html). For questions, collaboration proposals and requests for data email [James Ball](mailto:ball.jgc@gmail.com). Some example data is available for download [here](https://doi.org/10.5281/zenodo.8136161).
 
 Detectree2是一个基于Mask R-CNN的自动树冠检测与分割的Python包。您可以在[`model_garden`](https://github.com/PatBall1/detectree2/tree/master/model_garden)中选择预训练模型。[这里](https://patball1.github.io/detectree2/tutorial.html)提供了如何准备数据、训练模型和进行预测的教程。如果有任何问题，合作提案或者需要样例数据，可以邮件联系[James Ball](mailto:ball.jgc@gmail.com)。一些示例数据可以在[这里](https://doi.org/10.5281/zenodo.8136161)下载。
 
-<sub>Code developed by James Ball, Seb Hickman, Thomas Koay, Oscar Jiang, Luran Wang, Panagiotis Ioannou, James Hinton and Matthew Archer in the [Forest Ecology and Conservation Group](https://coomeslab.org/) at the University of Cambridge.
-The Forest Ecology and Conservation Group is led by Professor David Coomes and is part of the University of Cambridge [Conservation Research Institute](https://www.conservation.cam.ac.uk/).
-MRes project repo available [here](https://github.com/shmh40/detectreeRGB).</sub>
+| <a href="https://www.conservation.cam.ac.uk/"><img src="./report/cam_logo.png" width="140"></a> | <sup> Code developed by James Ball, Seb Hickman, Thomas Koay, Oscar Jiang, Luran Wang, Panagiotis Ioannou, James Hinton and Matthew Archer in the [Forest Ecology and Conservation Group](https://coomeslab.org/) at the University of Cambridge. The Forest Ecology and Conservation Group is led by Professor David Coomes and is part of the University of Cambridge [Conservation Research Institute](https://www.conservation.cam.ac.uk/). </sup>|
+| :---: | :--- |
 
-> **Warning**\
+<br/><br/>
+> [!WARNING]
 > Due to an influx of new users we have been hitting bandwidth limits. This is primarily from the file size of the pre-trained models. If you are using these models please aim to save them locally and point to them when you need them rather than downloading them each time they are required. We will move to a more bandwidth friendly set up soon. In the meantime, if installing the package is failing please raise it as an issue or notify me directly on ball.jgc@gmail.com.
 
-## Please cite
+
+## Citation
+
+Please cite this article if you use _detectree2_ in your work:
 
 Ball, J.G.C., Hickman, S.H.M., Jackson, T.D., Koay, X.J., Hirst, J., Jay, W., Archer, M., Aubry-Kientz, M., Vincent, G. and Coomes, D.A. (2023),
 Accurate delineation of individual tree crowns in tropical forests from aerial RGB imagery using Mask R-CNN.
-*Remote Sens Ecol Conserv*. [https://doi.org/10.1002/rse2.332](https://doi.org/10.1002/rse2.332)
+*Remote Sens Ecol Conserv*. 9(5):641-655. [https://doi.org/10.1002/rse2.332](https://doi.org/10.1002/rse2.332)
+
+## Independent validation
+
+Independent validation has been performed on a temperate deciduous forest in Japan.
+
+> *Detectree2 (F1 score: 0.57) outperformed DeepForest (F1 score: 0.52)*
+>
+> *Detectree2 could estimate tree crown areas accurately, highlighting its potential and robustness for tree detection and delineation*
+
+Gan, Y., Wang, Q., and Iio, A. (2023).
+Tree Crown Detection and Delineation in a Temperate Deciduous Forest from UAV RGB Imagery Using Deep Learning Approaches: Effects of Spatial Resolution and Species Characteristics. 
+*Remote Sensing*. 15(3):778. [https://doi.org/10.3390/rs15030778](https://doi.org/10.3390/rs15030778)
 
 ## Requirements
 
@@ -77,17 +93,6 @@ Here is an example image of the predictions made by Detectree2.
 <p align="center">
 <img width="700" align="center" alt="predictions" src= ./report/figures/prediction_paracou.png >
 </p>
-
-## Independent validation
-
-> *Detectree2 (F1 score: 0.57) outperformed DeepForest (F1 score: 0.52)*
->
-> *Detectree2 could estimate tree crown areas accurately, highlighting its potential and robustness for tree detection and delineation*
-
-Gan, Yi, Quan Wang, and Atsuhiro Iio. (2023).
-Tree Crown Detection and Delineation in a Temperate Deciduous Forest from UAV RGB Imagery Using Deep Learning Approaches: Effects of Spatial Resolution and Species Characteristics. 
-*Remote Sensing*. 15(3):778. [https://doi.org/10.3390/rs15030778](https://doi.org/10.3390/rs15030778)
-
 
 ## Applications
 
