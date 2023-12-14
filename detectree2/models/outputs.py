@@ -187,14 +187,9 @@ def remove_very_small_polygons(crowns:gpd.GeoDataFrame, size_threshold=1.0) -> g
     Returns:
         gpd.GeoDataFrame: A GeoDataFrame with no small fragmentary crowns.
     """
-    areas = []
-    indexes_to_remove = []
-    for index1, row1 in crowns.iterrows():
-        areas.append((row1.geometry.area, index1))
+    areas = [(row.geometry.area, index) for index, row in crowns.iterrows()]
     areas.sort()
-    for area in areas:
-        if area[0] <= size_threshold: # threshold may differ across inference images
-            indexes_to_remove.append(area[1])
+    indexes_to_remove = [area[1] for area in areas if area[0] <= size_threshold] # threshold may differ across inference images
     indexes_to_remove = list(set(indexes_to_remove))
     indexes_to_keep = set(range(crowns.shape[0])) - set(indexes_to_remove)
     print("Removed",len(indexes_to_remove),"very small crowns!")
